@@ -448,6 +448,36 @@ def amun_events(identifier, payload):
         signature='Connection to Honeypot',
     )
 
+def fog_events(identifier, payload):
+    try:
+        kwargs = json.loads(str(payload))
+        dec = ezdict(json.loads(str(payload)))
+    except:
+        print 'exception processing fog event'
+        traceback.print_exc()
+        return
+
+    # Delete some keys so we don't send two copies of them to create_message()
+    for key in 'src_ip', 'dest_ip', 'src_port', 'dest_port', '@timestamp', \
+                'app', 'severity', 'signature':
+        kwargs.pop(key, 0)
+
+    return create_message(
+        'fog.events',
+        identifier,
+        src_ip=dec.src_ip,
+        dst_ip=dec.dest_ip,
+        src_port=dec.src_port,
+        dst_port=dec.dest_port,
+        vendor_product='FogMachine',
+        app=dec.app or 'fog',
+        direction='inbound',
+        ids_type='network',
+        severity=dec.severity or 'high',
+        signature=dec.signature or 'Connection to Honeypot',
+        **kwargs
+    )
+
 
 def wordpot_event(identifier, payload):
     try:
@@ -583,6 +613,7 @@ PROCESSORS = {
     'p0f.events': [p0f_events],
     'suricata.events': [suricata_events],
     'elastichoney.events': [elastichoney_events],
+    'fog.events': [fog_events]
 }
 
 
