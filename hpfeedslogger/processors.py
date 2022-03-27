@@ -5,7 +5,7 @@ import urlparse
 import socket
 import hashlib
 import re
-import GeoIP
+import geoip2.database
 
 IPV6_REGEX = re.compile(r'::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
 
@@ -68,16 +68,22 @@ def geo_intel(maxmind_geo, maxmind_asn, ip, prefix=''):
     }
 
     if maxmind_geo:
-        geo = maxmind_geo.record_by_addr(ip)
+        geo = maxmind_geo.city(ip)
         if geo:
-            if geo['city'] is not None:
-                geo['city'] = geo['city'].decode('latin1')
-            result.update(geo)
+            result['city'] = geo.city.name
+            result['region_name'] = geo.subdivisions.most_specific.name
+            result['region'] = geo.subdivisions.most_specific.iso_code
+            result['longitude'] = geo.location.longitude
+            result['latitude'] = geo.location.latitude
+            result['country_code3'] = geo.country.iso_code
+            result['postal_code'] = geo.postal.code
+            result['country_code'] = geo.country.iso_code
+            result['country_name'] = geo.country.name
 
     if maxmind_asn:
-        org = maxmind_asn.org_by_addr(ip)
+        org = maxmind_asn.asn(ip)
         if org:
-            result['org'] = org.decode('latin-1')
+            result['org'] = org.autonomous_system_organization
     if prefix:
         result = dict((prefix+name, value) for name, value in result.items())
     return result
@@ -146,6 +152,43 @@ def glastopf_event(identifier, payload):
         request_url=request_url,
     )
 
+def agave_event(identifier, payload):
+    try:
+        dec = ezdict(json.loads(str(payload)))
+    except:
+        print 'exception processing dionaea event'
+        traceback.print_exc()
+        return
+
+    base_message = create_message(
+        'agave.events',
+        identifier,
+        protocol=dec.protocol,
+        src_ip=dec.src_ip,
+        dst_ip=dec.dest_ip,
+        src_port=dec.src_port,
+        dst_port=dec.dest_port,
+        vendor_product='Agave',
+        app='agave',
+        signature=dec.signature,
+        agave_app=dec.agave_app
+    )
+
+    # if this is a login attempt, make sure we log creds
+    if dec.agave_username:
+        base_message['agave_username'] = dec.agave_username
+    if dec.agave_password:
+        base_message['agave_password'] = dec.agave_password
+
+    # non login request will give what the HTTP request json is
+    if dec.request_json:
+        base_message['request_json'] = dec.request_json
+
+    # was this IP previously seen scanning us?
+    if dec.prev_seen:
+        base_message['prev_seen'] = dec.prev_seen
+
+    return base_message
 
 def dionaea_capture(identifier, payload):
     try:
@@ -613,7 +656,8 @@ PROCESSORS = {
     'p0f.events': [p0f_events],
     'suricata.events': [suricata_events],
     'elastichoney.events': [elastichoney_events],
-    'uhp.events': [uhp_events]
+    'agave.events': [agave_event],
+    'uhp.events': [uhp_events],
 }
 
 
@@ -623,9 +667,9 @@ class HpfeedsMessageProcessor(object):
         self.maxmind_asn = None
 
         if maxmind_geo_file:
-            self.maxmind_geo = GeoIP.open(maxmind_geo_file, GeoIP.GEOIP_STANDARD)
+            self.maxmind_geo = geoip2.database.Reader(maxmind_geo_file)
         if maxmind_asn_file:
-            self.maxmind_asn = GeoIP.open(maxmind_asn_file, GeoIP.GEOIP_STANDARD)
+            self.maxmind_asn = geoip2.database.Reader(maxmind_asn_file)
 
     def geo_intelligence_enrichment(self, messages):
         for message in messages:

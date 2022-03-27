@@ -28,15 +28,12 @@ long_description = """A library for consuming messages from hpfeeds honeypots an
 
 setup(
     name='hpfeeds-logger',
-    version='0.0.7.3',
-    author='Jason Trost',
-    author_email='tech@threatstream.com',
-    maintainer='Anomali, Inc.',
-    maintainer_email='tech@threatstream.com',
+    version='0.0.7.7',
+    maintainer='Pwnlandia',
     license='License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)',
     description='Python library to normalize and log hpfeeds honeypot messages',
     long_description=long_description,
-    url='https://github.com/threatstream/hpfeeds-logger',
+    url='https://github.com/Pwnlandia/hpfeeds-logger',
     keywords='hpfeeds logger normalizer formatter honeypots',
     packages=['hpfeedslogger',
         'hpfeedslogger.formatters',
@@ -45,7 +42,7 @@ setup(
     scripts=['bin/hpfeeds-logger'],
     install_requires=[
         'hpfeeds-threatstream==1.1',
-        'GeoIP==1.3.2'
+        'geoip2==2.9.0'
     ],
     tests_require=[],
     py_modules=['ez_setup'],
